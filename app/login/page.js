@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
 
 export default function LoginPage() {
@@ -92,7 +93,11 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-muted mt-6">
-          Akun dibuat oleh admin lewat Supabase Dashboard. Hubungi admin tim kalau belum punya akses.
+          Belum punya akun?{' '}
+          <Link href="/signup" className="text-ink underline">
+            Daftar di sini
+          </Link>
+          . Atau hubungi admin tim kalau akun seharusnya sudah dibuatkan.
         </p>
       </div>
     </main>
