@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+body {
+  background-color: #FAFAF8;
+  color: #171717;
+}
+
+::selection {
+  background-color: #E4F3EF;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
