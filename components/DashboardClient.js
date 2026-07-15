@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-browser';
 import VideoTable from './VideoTable';
@@ -41,6 +42,12 @@ export default function DashboardClient({ initialVideos, userEmail }) {
           <h1 className="font-display text-2xl text-ink">Performa Video Kerjasama</h1>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/add-links"
+            className="text-xs font-medium text-white bg-ink hover:bg-black rounded-md px-3 py-1.5 transition-colors"
+          >
+            + Tambah link
+          </Link>
           <span className="text-xs text-muted hidden sm:inline">{userEmail}</span>
           <button
             onClick={handleLogout}
