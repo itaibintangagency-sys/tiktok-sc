@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -10,29 +10,28 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-function buildTrendData(videos, metric) {
-  const byDate = {};
+function buildCreatorData(videos, metric) {
+  const byCreator = {};
 
   for (const v of videos) {
-    if (!v.post_date) continue;
-    const day = v.post_date.slice(0, 10); // YYYY-MM-DD
-    if (!byDate[day]) byDate[day] = { date: day, views: 0, er: [], count: 0 };
-    byDate[day].views += v.views || 0;
-    byDate[day].er.push(Number(v.er) || 0);
-    byDate[day].count += 1;
+    const name = v.username || 'Tanpa nama';
+    if (!byCreator[name]) byCreator[name] = { username: name, views: 0, er: [], count: 0 };
+    byCreator[name].views += v.views || 0;
+    byCreator[name].er.push(Number(v.er) || 0);
+    byCreator[name].count += 1;
   }
 
-  return Object.values(byDate)
-    .map((d) => ({
-      date: d.date,
-      views: d.views,
-      er: d.er.length ? d.er.reduce((a, b) => a + b, 0) / d.er.length : 0,
-    }))
-    .sort((a, b) => (a.date > b.date ? 1 : -1));
+  const data = Object.values(byCreator).map((c) => ({
+    username: c.username,
+    views: c.views,
+    er: c.er.length ? c.er.reduce((a, b) => a + b, 0) / c.er.length : 0,
+  }));
+
+  return data.sort((a, b) => b[metric === 'er' ? 'er' : 'views'] - a[metric === 'er' ? 'er' : 'views']);
 }
 
 export default function TrendChart({ videos, metric }) {
-  const data = buildTrendData(videos, metric);
+  const data = buildCreatorData(videos, metric);
 
   if (data.length === 0) {
     return (
@@ -44,19 +43,24 @@ export default function TrendChart({ videos, metric }) {
 
   const dataKey = metric === 'er' ? 'er' : 'views';
   const label = metric === 'er' ? 'ER (%)' : 'Views';
+  const isCrowded = data.length > 10;
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={isCrowded ? 320 : 260}>
+      <BarChart
+        data={data}
+        margin={{ top: 8, right: 16, left: 0, bottom: isCrowded ? 60 : 0 }}
+      >
         <CartesianGrid strokeDasharray="3 3" stroke="#E4E2DD" vertical={false} />
         <XAxis
-          dataKey="date"
+          dataKey="username"
           tick={{ fontSize: 11, fill: '#6B6B66' }}
-          tickFormatter={(d) =>
-            new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
-          }
           axisLine={{ stroke: '#E4E2DD' }}
           tickLine={false}
+          interval={0}
+          angle={isCrowded ? -45 : 0}
+          textAnchor={isCrowded ? 'end' : 'middle'}
+          height={isCrowded ? 70 : 30}
         />
         <YAxis
           tick={{ fontSize: 11, fill: '#6B6B66' }}
@@ -65,13 +69,6 @@ export default function TrendChart({ videos, metric }) {
           width={42}
         />
         <Tooltip
-          labelFormatter={(d) =>
-            new Date(d).toLocaleDateString('id-ID', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-            })
-          }
           formatter={(value) => [
             metric === 'er' ? `${value.toFixed(2)}%` : value.toLocaleString('id-ID'),
             label,
@@ -82,15 +79,8 @@ export default function TrendChart({ videos, metric }) {
             borderRadius: 8,
           }}
         />
-        <Line
-          type="monotone"
-          dataKey={dataKey}
-          stroke="#0F6E5C"
-          strokeWidth={2}
-          dot={{ r: 3, fill: '#0F6E5C' }}
-          activeDot={{ r: 5 }}
-        />
-      </LineChart>
+        <Bar dataKey={dataKey} fill="#0F6E5C" radius={[4, 4, 0, 0]} />
+      </BarChart>
     </ResponsiveContainer>
   );
 }
