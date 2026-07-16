@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 
+const MAX_LINKS = 50; // samakan dengan MAX_LINKS di app/dashboard/add-links/page.js
+
 export async function POST(request) {
   const supabase = createClient();
   const {
@@ -15,6 +17,13 @@ export async function POST(request) {
 
   if (!Array.isArray(urls) || urls.length === 0) {
     return NextResponse.json({ error: 'Tidak ada link yang dikirim.' }, { status: 400 });
+  }
+
+  if (urls.length > MAX_LINKS) {
+    return NextResponse.json(
+      { error: `Maksimal ${MAX_LINKS} link per submit.` },
+      { status: 400 }
+    );
   }
 
   // Bersihkan: buang baris kosong, spasi, dan duplikat dalam satu submit
