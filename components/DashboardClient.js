@@ -8,7 +8,7 @@ import VideoTable from './VideoTable';
 import TrendChart from './TrendChart';
 import CommentsPanel from './CommentsPanel';
 
-export default function DashboardClient({ initialVideos, userEmail }) {
+export default function DashboardClient({ initialVideos, userEmail, campaignName, isFiltered }) {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [metric, setMetric] = useState('views');
   const router = useRouter();
@@ -36,12 +36,30 @@ export default function DashboardClient({ initialVideos, userEmail }) {
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-[1400px] mx-auto">
       <header className="flex items-start justify-between mb-8">
         <div>
+          {isFiltered && (
+            <Link
+              href="/dashboard/campaigns"
+              className="text-xs text-muted hover:text-ink mb-2 inline-flex items-center gap-1"
+            >
+              ← Semua campaign
+            </Link>
+          )}
           <p className="font-mono text-xs tracking-widest uppercase text-accent mb-1">
             Creator Pulse
           </p>
-          <h1 className="font-display text-2xl text-ink">Performa Video Kerjasama</h1>
+          <h1 className="font-display text-2xl text-ink">
+            {isFiltered ? campaignName : 'Performa Video Kerjasama'}
+          </h1>
         </div>
         <div className="flex items-center gap-3">
+          {!isFiltered && (
+            <Link
+              href="/dashboard/campaigns"
+              className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-1.5 transition-colors"
+            >
+              Lihat Campaign
+            </Link>
+          )}
           <Link
             href="/dashboard/add-links"
             className="text-xs font-medium text-white bg-ink hover:bg-black rounded-md px-3 py-1.5 transition-colors"
@@ -91,7 +109,9 @@ export default function DashboardClient({ initialVideos, userEmail }) {
       </section>
 
       <section>
-        <h2 className="font-display text-lg text-ink mb-4">Semua Video</h2>
+        <h2 className="font-display text-lg text-ink mb-4">
+          {isFiltered ? 'Video dalam Campaign Ini' : 'Semua Video'}
+        </h2>
         <VideoTable
           videos={initialVideos}
           onSelectVideo={setSelectedVideo}
