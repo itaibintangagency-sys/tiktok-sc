@@ -1,15 +1,21 @@
 import { createClient } from '@/lib/supabase-server';
 import DashboardClient from '@/components/DashboardClient';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }) {
   const supabase = createClient();
+  const batchId = searchParams?.batch || null;
 
-  const { data: rawVideos } = await supabase
+  let query = supabase
     .from('videos')
     .select('*, scrape_history(batch_name)')
     .order('post_date', { ascending: false });
 
-  // Ratakan hasil join supaya VideoTable bisa langsung baca v.batch_name
+  if (batchId) {
+    query = query.eq('batch_id', batchId);
+  }
+
+  const { data: rawVideos } = await query;
+
   const videos = (rawVideos || []).map((v) => ({
     ...v,
     batch_name: v.scrape_history?.batch_name ?? null,
@@ -19,5 +25,15 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return <DashboardClient initialVideos={videos} userEmail={user?.email} />;
+  // Nama campaign untuk header, kalau sedang dalam mode terfilter
+  const campaignName = batchId ? videos[0]?.batch_name ?? 'Campaign' : null;
+
+  return (
+    <DashboardClient
+      initialVideos={videos}
+      userEmail={user?.email}
+      campaignName={campaignName}
+      isFiltered={!!batchId}
+    />
+  );
 }
