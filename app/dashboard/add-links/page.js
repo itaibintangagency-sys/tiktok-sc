@@ -5,10 +5,12 @@ import Link from 'next/link';
 
 export default function AddLinksPage() {
   const [text, setText] = useState('');
+  const [batchName, setBatchName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [job, setJob] = useState(null); // { id, total }
-  const [progress, setProgress] = useState(null); // row dari scrape_history
+  const [progress, setProgress] = useState(null); // row dari scrape_history + error_count, eta_seconds
+  const [showErrors, setShowErrors] = useState(false);
   const pollRef = useRef(null);
 
   const linkCount = text
@@ -34,7 +36,7 @@ export default function AddLinksPage() {
     const res = await fetch('/api/trigger-scrape', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls }),
+      body: JSON.stringify({ urls, batchName: batchName.trim() || null }),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -69,6 +71,13 @@ export default function AddLinksPage() {
 
   const percent = progress ? Math.round((progress.processed_count / progress.total_count) * 100) : 0;
   const isDone = progress && progress.status !== 'running';
+  const hasErrors = progress && progress.error_count > 0;
+
+  function formatEta(seconds) {
+    if (seconds === null || seconds === undefined) return null;
+    if (seconds < 60) return `±${seconds} detik lagi`;
+    return `±${Math.round(seconds / 60)} menit lagi`;
+  }
 
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-2xl mx-auto">
@@ -86,6 +95,22 @@ export default function AddLinksPage() {
 
       {!job && (
         <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-muted mb-1.5">
+              Nama batch <span className="text-muted/60">(opsional)</span>
+            </label>
+            <input
+              type="text"
+              value={batchName}
+              onChange={(e) => setBatchName(e.target.value)}
+              placeholder="Contoh: Kampanye Ramadan - Wave 2"
+              className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+            />
+            <p className="text-xs text-muted/70 mt-1">
+              Kosongkan untuk pakai nama otomatis berdasarkan tanggal & waktu.
+            </p>
+          </div>
+
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -115,7 +140,7 @@ export default function AddLinksPage() {
 
       {job && (
         <div className="border border-line rounded-lg bg-white p-6">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-medium text-ink">
               {isDone ? 'Selesai' : 'Sedang memproses…'}
             </span>
@@ -124,12 +149,43 @@ export default function AddLinksPage() {
             </span>
           </div>
 
-          <div className="w-full h-2 rounded-full bg-paper border border-line overflow-hidden">
+          {progress?.batch_name && (
+            <p className="text-xs text-muted mb-2">Batch: {progress.batch_name}</p>
+          )}
+
+          <div className="w-full h-2 rounded-full bg-paper border border-line overflow-hidden mt-2">
             <div
               className="h-full bg-accent transition-all duration-500"
               style={{ width: `${percent}%` }}
             />
           </div>
+
+          {/* Fitur C: ETA */}
+          {!isDone && progress?.eta_seconds != null && (
+            <p className="text-xs text-muted mt-2">{formatEta(progress.eta_seconds)}</p>
+          )}
+
+          {/* Fitur D: error surfacing real-time */}
+          {hasErrors && (
+            <div className="mt-4 rounded-md border border-red-100 bg-red-50 p-3">
+              <button
+                type="button"
+                onClick={() => setShowErrors((s) => !s)}
+                className="text-xs font-medium text-red-600 hover:underline"
+              >
+                {progress.error_count} link gagal — {showErrors ? 'sembunyikan' : 'lihat detail'}
+              </button>
+              {showErrors && (
+                <ul className="mt-2 space-y-1 text-xs text-red-500">
+                  {progress.recent_errors.map((err, i) => (
+                    <li key={i} className="truncate">
+                      {err.link}: {err.error_info}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {isDone && (
             <div className="mt-5 flex items-center gap-3">
@@ -143,6 +199,7 @@ export default function AddLinksPage() {
                 onClick={() => {
                   setJob(null);
                   setProgress(null);
+                  setBatchName('');
                 }}
                 className="text-sm text-muted hover:text-ink"
               >
