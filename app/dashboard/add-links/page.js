@@ -1,12 +1,26 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 const MAX_LINKS = 50; // batas per batch — samakan dengan app/api/trigger-scrape/route.js
 
 export default function AddLinksPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen px-6 md:px-10 py-8 max-w-2xl mx-auto">
+          <p className="text-sm text-muted">Memuat...</p>
+        </main>
+      }
+    >
+      <AddLinksInner />
+    </Suspense>
+  );
+}
+
+function AddLinksInner() {
   const searchParams = useSearchParams();
   const presetCampaignId = searchParams.get('campaign');
   const presetCampaignName = searchParams.get('campaignName');
