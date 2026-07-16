@@ -11,7 +11,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Belum login.' }, { status: 401 });
   }
 
-  const { urls } = await request.json();
+  const { urls, batchName } = await request.json();
 
   if (!Array.isArray(urls) || urls.length === 0) {
     return NextResponse.json({ error: 'Tidak ada link yang dikirim.' }, { status: 400 });
@@ -32,7 +32,16 @@ export async function POST(request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  // 2. Buat record scrape_history untuk tracking progres
+  // Nama batch default kalau user tidak isi manual
+  const finalBatchName =
+    batchName?.trim() ||
+    `Batch ${new Date().toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+
+  // 2. Buat record scrape_history untuk tracking progres (+ nama batch)
   const { data: historyRow, error: historyError } = await supabase
     .from('scrape_history')
     .insert({
@@ -41,6 +50,7 @@ export async function POST(request) {
       total_count: cleanUrls.length,
       processed_count: 0,
       status: 'running',
+      batch_name: finalBatchName,
     })
     .select()
     .single();
@@ -51,6 +61,10 @@ export async function POST(request) {
 
   // 3. Panggil webhook n8n — DIWAJIBKAN await di lingkungan serverless,
   // karena fire-and-forget bisa terpotong begitu function mengirim response.
+  //
+  // CATATAN: jobId di bawah ini SEKALIGUS jadi batch_id — n8n cukup pakai
+  // field jobId yang sama untuk menulis kolom videos.batch_id, tidak perlu
+  // field terpisah.
   try {
     const webhookRes = await fetch(process.env.N8N_WEBHOOK_URL, {
       method: 'POST',
@@ -81,5 +95,5 @@ export async function POST(request) {
     );
   }
 
-  return NextResponse.json({ jobId: historyRow.id, total: cleanUrls.length });
+  return NextResponse.json({ jobId: historyRow.id, total: cleanUrls.length, batchName: finalBatchName });
 }
