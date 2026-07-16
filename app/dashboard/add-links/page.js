@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
+const MAX_LINKS = 50; // ganti angka ini kalau mau ubah batas maksimal link per submit
+
 export default function AddLinksPage() {
   const [text, setText] = useState('');
   const [batchName, setBatchName] = useState('');
@@ -29,6 +31,13 @@ export default function AddLinksPage() {
 
     if (urls.length === 0) {
       setError('Tempel minimal 1 link TikTok.');
+      return;
+    }
+
+    if (urls.length > MAX_LINKS) {
+      setError(
+        `Maksimal ${MAX_LINKS} link per submit (Anda memasukkan ${urls.length}). Pisahkan jadi beberapa batch.`
+      );
       return;
     }
 
@@ -120,10 +129,16 @@ export default function AddLinksPage() {
           />
 
           <div className="flex items-center justify-between mt-3">
-            <span className="text-xs text-muted tabular">{linkCount} link terdeteksi</span>
+            <span
+              className={`text-xs tabular ${
+                linkCount > MAX_LINKS ? 'text-red-600 font-medium' : 'text-muted'
+              }`}
+            >
+              {linkCount} / {MAX_LINKS} link terdeteksi
+            </span>
             <button
               type="submit"
-              disabled={submitting || linkCount === 0}
+              disabled={submitting || linkCount === 0 || linkCount > MAX_LINKS}
               className="rounded-md bg-ink text-white text-sm font-medium px-5 py-2.5 hover:bg-black transition-colors disabled:opacity-50"
             >
               {submitting ? 'Mengirim…' : `Mulai scraping (${linkCount} link)`}
