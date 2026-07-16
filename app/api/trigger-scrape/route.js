@@ -49,20 +49,37 @@ export async function POST(request) {
     return NextResponse.json({ error: historyError.message }, { status: 500 });
   }
 
-  // 3. Panggil webhook n8n — fire and forget, tidak menunggu scraping selesai
-  fetch(process.env.N8N_WEBHOOK_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Webhook-Secret': process.env.N8N_WEBHOOK_SECRET,
-    },
-    body: JSON.stringify({
-      jobId: historyRow.id,
-      urls: cleanUrls,
-    }),
-  }).catch((err) => {
-    console.error('Gagal memanggil webhook n8n:', err);
-  });
+  // 3. Panggil webhook n8n — DIWAJIBKAN await di lingkungan serverless,
+  // karena fire-and-forget bisa terpotong begitu function mengirim response.
+  try {
+    const webhookRes = await fetch(process.env.N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Secret': process.env.N8N_WEBHOOK_SECRET,
+      },
+      body: JSON.stringify({
+        jobId: historyRow.id,
+        urls: cleanUrls,
+      }),
+    });
+
+    if (!webhookRes.ok) {
+      console.error('Webhook n8n merespons dengan status:', webhookRes.status);
+    }
+  } catch (err) {
+    console.error('Gagal memanggil webhook n8n:', err.message);
+    // Job tetap dibuat di DB, tapi tandai gagal supaya tidak macet selamanya di "running"
+    await supabase
+      .from('scrape_history')
+      .update({ status: 'failed', finished_at: new Date().toISOString() })
+      .eq('id', historyRow.id);
+
+    return NextResponse.json(
+      { error: 'Gagal menghubungi server scraping: ' + err.message },
+      { status: 502 }
+    );
+  }
 
   return NextResponse.json({ jobId: historyRow.id, total: cleanUrls.length });
 }
