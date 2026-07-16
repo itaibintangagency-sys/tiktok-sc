@@ -1,12 +1,6 @@
 import { createClient } from '@/lib/supabase-server';
 import Link from 'next/link';
-
-const STATUS_STYLE = {
-  running: { label: 'Berjalan', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  success: { label: 'Selesai', className: 'bg-accentSoft text-accent border-accent/30' },
-  failed: { label: 'Gagal', className: 'bg-red-50 text-red-600 border-red-200' },
-  partial: { label: 'Sebagian Gagal', className: 'bg-orange-50 text-orange-600 border-orange-200' },
-};
+import CampaignsGrid from '@/components/CampaignsGrid';
 
 export default async function CampaignsPage() {
   const supabase = createClient();
@@ -54,64 +48,7 @@ export default async function CampaignsPage() {
         </div>
       )}
 
-      {campaigns && campaigns.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {campaigns.map((c) => {
-            const statusInfo = STATUS_STYLE[c.status] || STATUS_STYLE.running;
-            return (
-              <Link
-                key={c.batch_id}
-                href={`/dashboard?batch=${c.batch_id}`}
-                className="border border-line rounded-lg bg-white p-5 hover:border-accent transition-colors group"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-display text-base text-ink group-hover:text-accent transition-colors pr-2">
-                    {c.batch_name}
-                  </h3>
-                  <span
-                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${statusInfo.className}`}
-                  >
-                    {statusInfo.label}
-                  </span>
-                </div>
-
-                <p className="text-xs text-muted mb-4">
-                  {new Date(c.started_at).toLocaleDateString('id-ID', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </p>
-
-                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line">
-                  <div>
-                    <p className="text-[11px] text-muted mb-0.5">Video</p>
-                    <p className="text-sm font-medium text-ink tabular">{c.video_count}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted mb-0.5">Views</p>
-                    <p className="text-sm font-medium text-ink tabular">
-                      {Number(c.total_views || 0).toLocaleString('id-ID')}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted mb-0.5">Avg ER</p>
-                    <p className="text-sm font-medium text-ink tabular">
-                      {Number(c.avg_er || 0).toFixed(1)}%
-                    </p>
-                  </div>
-                </div>
-
-                {c.status === 'running' && (
-                  <p className="text-[11px] text-amber-600 mt-3">
-                    {c.processed_count}/{c.total_count} link diproses...
-                  </p>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      {campaigns && campaigns.length > 0 && <CampaignsGrid campaigns={campaigns} />}
     </main>
   );
 }
