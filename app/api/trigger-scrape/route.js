@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 
-const MAX_LINKS = 50; // batas per BATCH (1 submit), bukan per campaign
+const MAX_LINKS = 50; // hard limit per submit — TIDAK auto-split lagi
 
 export async function POST(request) {
   const supabase = createClient();
@@ -13,22 +13,81 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Belum login.' }, { status: 401 });
   }
 
-  const { urls, campaignId, newCampaignName, batchName } = await request.json();
+  const { urls, campaignId, newCampaignName, batchName, appendToBatchId } = await request.json();
 
   if (!Array.isArray(urls) || urls.length === 0) {
     return NextResponse.json({ error: 'Tidak ada link yang dikirim.' }, { status: 400 });
   }
-
   if (urls.length > MAX_LINKS) {
-    return NextResponse.json(
-      { error: `Maksimal ${MAX_LINKS} link per batch.` },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: `Maksimal ${MAX_LINKS} link per submit.` }, { status: 400 });
   }
 
   const cleanUrls = [...new Set(urls.map((u) => u.trim()).filter(Boolean))];
 
-  // 1. Tentukan campaign: pakai yang sudah ada, atau buat baru
+  // Simpan link baru ke tabel videos (skip duplikat)
+  const { error: insertError } = await supabase
+    .from('videos')
+    .upsert(
+      cleanUrls.map((url) => ({ input_url: url })),
+      { onConflict: 'input_url', ignoreDuplicates: true }
+    );
+
+  if (insertError) {
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
+
+  // ============================================================
+  // MODE A: Append ke batch yang sudah ada
+  // ============================================================
+  if (appendToBatchId) {
+    const { data: existingBatch, error: fetchError } = await supabase
+      .from('scrape_history')
+      .select('status, total_count, processed_count')
+      .eq('id', appendToBatchId)
+      .single();
+
+    if (fetchError || !existingBatch) {
+      return NextResponse.json({ error: 'Batch tidak ditemukan.' }, { status: 404 });
+    }
+    if (existingBatch.status === 'running') {
+      return NextResponse.json(
+        { error: 'Batch ini masih berjalan, tunggu sampai selesai sebelum menambah link.' },
+        { status: 409 }
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from('scrape_history')
+      .update({
+        total_count: existingBatch.total_count + cleanUrls.length,
+        status: 'running',
+        finished_at: null,
+      })
+      .eq('id', appendToBatchId);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    const webhookResult = await callWebhook(appendToBatchId, cleanUrls);
+    if (!webhookResult.ok) {
+      await supabase
+        .from('scrape_history')
+        .update({ status: 'failed', finished_at: new Date().toISOString() })
+        .eq('id', appendToBatchId);
+      return NextResponse.json({ error: webhookResult.error }, { status: 502 });
+    }
+
+    return NextResponse.json({
+      jobId: appendToBatchId,
+      total: cleanUrls.length,
+      mode: 'append',
+    });
+  }
+
+  // ============================================================
+  // MODE B/C: Buat batch baru (di campaign existing ATAU campaign baru)
+  // ============================================================
   let finalCampaignId = campaignId || null;
 
   if (!finalCampaignId) {
@@ -51,23 +110,9 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-
     finalCampaignId = newCampaign.id;
   }
 
-  // 2. Simpan link baru ke tabel videos (skip yang sudah ada)
-  const { error: insertError } = await supabase
-    .from('videos')
-    .upsert(
-      cleanUrls.map((url) => ({ input_url: url })),
-      { onConflict: 'input_url', ignoreDuplicates: true }
-    );
-
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
-  }
-
-  // Hitung urutan batch ke berapa dalam campaign ini, untuk nama default
   const { count: existingBatchCount } = await supabase
     .from('scrape_history')
     .select('id', { count: 'exact', head: true })
@@ -75,7 +120,6 @@ export async function POST(request) {
 
   const finalBatchName = batchName?.trim() || `Batch ${(existingBatchCount ?? 0) + 1}`;
 
-  // 3. Buat record scrape_history (= 1 batch) di dalam campaign ini
   const { data: historyRow, error: historyError } = await supabase
     .from('scrape_history')
     .insert({
@@ -94,34 +138,13 @@ export async function POST(request) {
     return NextResponse.json({ error: historyError.message }, { status: 500 });
   }
 
-  // 4. Panggil webhook n8n
-  try {
-    const webhookRes = await fetch(process.env.N8N_WEBHOOK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Webhook-Secret': process.env.N8N_WEBHOOK_SECRET,
-      },
-      body: JSON.stringify({
-        jobId: historyRow.id,
-        urls: cleanUrls,
-      }),
-    });
-
-    if (!webhookRes.ok) {
-      console.error('Webhook n8n merespons dengan status:', webhookRes.status);
-    }
-  } catch (err) {
-    console.error('Gagal memanggil webhook n8n:', err.message);
+  const webhookResult = await callWebhook(historyRow.id, cleanUrls);
+  if (!webhookResult.ok) {
     await supabase
       .from('scrape_history')
       .update({ status: 'failed', finished_at: new Date().toISOString() })
       .eq('id', historyRow.id);
-
-    return NextResponse.json(
-      { error: 'Gagal menghubungi server scraping: ' + err.message },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: webhookResult.error }, { status: 502 });
   }
 
   return NextResponse.json({
@@ -129,5 +152,28 @@ export async function POST(request) {
     campaignId: finalCampaignId,
     total: cleanUrls.length,
     batchName: finalBatchName,
+    mode: 'new',
   });
+}
+
+async function callWebhook(jobId, urls) {
+  try {
+    const res = await fetch(process.env.N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Secret': process.env.N8N_WEBHOOK_SECRET,
+      },
+      body: JSON.stringify({ jobId, urls }),
+    });
+
+    if (!res.ok) {
+      console.error('Webhook n8n merespons dengan status:', res.status);
+      return { ok: false, error: `Webhook n8n merespons status ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('Gagal memanggil webhook n8n:', err.message);
+    return { ok: false, error: 'Gagal menghubungi server scraping: ' + err.message };
+  }
 }
