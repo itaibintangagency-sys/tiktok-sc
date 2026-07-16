@@ -1,14 +1,14 @@
 import { createClient } from '@/lib/supabase-server';
 import Link from 'next/link';
-import CampaignsGrid from '@/components/CampaignsGrid';
+import CampaignsListGrid from '@/components/CampaignsListGrid';
 
 export default async function CampaignsPage() {
   const supabase = createClient();
 
   const { data: campaigns } = await supabase
-    .from('batch_summary')
+    .from('campaign_summary')
     .select('*')
-    .order('started_at', { ascending: false });
+    .order('last_batch_at', { ascending: false, nullsFirst: false });
 
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-[1400px] mx-auto">
@@ -19,8 +19,8 @@ export default async function CampaignsPage() {
           </p>
           <h1 className="font-display text-2xl text-ink">Influencer Campaigns</h1>
           <p className="text-muted text-sm mt-1 max-w-xl">
-            Pantau video organik dari creator partner Anda. Kelompokkan per campaign,
-            lihat performanya, dan buka detail videonya.
+            1 campaign bisa berisi banyak batch link. Klik campaign untuk lihat semua
+            batch dan videonya.
           </p>
         </div>
         <Link
@@ -48,7 +48,7 @@ export default async function CampaignsPage() {
         </div>
       )}
 
-      {campaigns && campaigns.length > 0 && <CampaignsGrid campaigns={campaigns} />}
+      {campaigns && campaigns.length > 0 && <CampaignsListGrid campaigns={campaigns} />}
     </main>
   );
 }
