@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -27,7 +27,10 @@ function buildCreatorData(videos, metric) {
     er: c.er.length ? c.er.reduce((a, b) => a + b, 0) / c.er.length : 0,
   }));
 
-  return data.sort((a, b) => b[metric === 'er' ? 'er' : 'views'] - a[metric === 'er' ? 'er' : 'views']);
+  const key = metric === 'er' ? 'er' : 'views';
+
+  // Urutkan dari tertinggi sesuai metrik aktif, ambil Top 10 saja
+  return data.sort((a, b) => b[key] - a[key]).slice(0, 10);
 }
 
 export default function TrendChart({ videos, metric }) {
@@ -43,14 +46,10 @@ export default function TrendChart({ videos, metric }) {
 
   const dataKey = metric === 'er' ? 'er' : 'views';
   const label = metric === 'er' ? 'ER (%)' : 'Views';
-  const isCrowded = data.length > 10;
 
   return (
-    <ResponsiveContainer width="100%" height={isCrowded ? 320 : 260}>
-      <BarChart
-        data={data}
-        margin={{ top: 8, right: 16, left: 0, bottom: isCrowded ? 60 : 0 }}
-      >
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#E4E2DD" vertical={false} />
         <XAxis
           dataKey="username"
@@ -58,9 +57,6 @@ export default function TrendChart({ videos, metric }) {
           axisLine={{ stroke: '#E4E2DD' }}
           tickLine={false}
           interval={0}
-          angle={isCrowded ? -45 : 0}
-          textAnchor={isCrowded ? 'end' : 'middle'}
-          height={isCrowded ? 70 : 30}
         />
         <YAxis
           tick={{ fontSize: 11, fill: '#6B6B66' }}
@@ -79,8 +75,15 @@ export default function TrendChart({ videos, metric }) {
             borderRadius: 8,
           }}
         />
-        <Bar dataKey={dataKey} fill="#0F6E5C" radius={[4, 4, 0, 0]} />
-      </BarChart>
+        <Line
+          type="monotone"
+          dataKey={dataKey}
+          stroke="#0F6E5C"
+          strokeWidth={2}
+          dot={{ r: 3, fill: '#0F6E5C' }}
+          activeDot={{ r: 5 }}
+        />
+      </LineChart>
     </ResponsiveContainer>
   );
 }
