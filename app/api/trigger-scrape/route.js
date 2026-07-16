@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
-import { createAdminClient } from '@/lib/supabase-admin';
 
 export async function POST(request) {
   const supabase = createClient();
@@ -21,10 +20,8 @@ export async function POST(request) {
   // Bersihkan: buang baris kosong, spasi, dan duplikat dalam satu submit
   const cleanUrls = [...new Set(urls.map((u) => u.trim()).filter(Boolean))];
 
-  const admin = createAdminClient();
-
   // 1. Simpan link baru ke tabel videos (skip yang sudah ada, jangan timpa data lama)
-  const { error: insertError } = await admin
+  const { error: insertError } = await supabase
     .from('videos')
     .upsert(
       cleanUrls.map((url) => ({ input_url: url })),
@@ -36,7 +33,7 @@ export async function POST(request) {
   }
 
   // 2. Buat record scrape_history untuk tracking progres
-  const { data: historyRow, error: historyError } = await admin
+  const { data: historyRow, error: historyError } = await supabase
     .from('scrape_history')
     .insert({
       triggered_by: user.id,

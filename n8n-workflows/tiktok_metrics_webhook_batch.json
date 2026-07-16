@@ -1,0 +1,366 @@
+{
+  "name": "TikTok Metrics Scraper v3 (Webhook + Batch + Supabase Progress)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scrape-tiktok",
+        "authentication": "headerAuth",
+        "responseMode": "immediately",
+        "options": {}
+      },
+      "id": "wh-0001",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1600, 300],
+      "webhookId": "scrape-tiktok",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "N8N Webhook Secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "j1",
+              "name": "jobId",
+              "type": "string",
+              "value": "={{ $json.body.jobId }}"
+            },
+            {
+              "id": "j2",
+              "name": "urls",
+              "type": "array",
+              "value": "={{ $json.body.urls }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-0002",
+      "name": "Extract Webhook Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-1380, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "urls",
+        "options": {}
+      },
+      "id": "split-0003",
+      "name": "Split Out URLs",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [-1160, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 25,
+        "options": {}
+      },
+      "id": "batch-0004",
+      "name": "Split In Batches (25)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-940, 300]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "agg-0005",
+      "name": "Aggregate Batch Links",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [-700, 220]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ { \"urlArray\": $json.data.map(item => item.urls) } }}",
+        "options": {}
+      },
+      "id": "prep-0006",
+      "name": "Prepare URL Array",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-480, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"postURLs\": $json.urlArray, \"shouldDownloadCovers\": false, \"shouldDownloadVideos\": false, \"shouldDownloadSubtitles\": false } }}",
+        "options": {
+          "timeout": 280000,
+          "response": { "response": { "responseFormat": "json" } }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "apify-0007",
+      "name": "Apify - Run TikTok Scraper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-260, 220],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Apify_TikTok"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "err-1",
+              "leftValue": "={{ $json.errorCode }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-0008",
+      "name": "IF - Ada Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-40, 220]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            { "id": "f1", "name": "input_url", "type": "string", "value": "={{ $json.submittedVideoUrl.trim() }}" },
+            { "id": "f2", "name": "linkupdated", "type": "string", "value": "={{ $json.webVideoUrl }}" },
+            { "id": "f3", "name": "video_id", "type": "string", "value": "={{ $json.id }}" },
+            { "id": "f4", "name": "username", "type": "string", "value": "={{ $json.authorMeta?.name }}" },
+            { "id": "f5", "name": "post_date", "type": "string", "value": "={{ $json.createTimeISO }}" },
+            { "id": "f6", "name": "caption", "type": "string", "value": "={{ $json.text }}" },
+            { "id": "f7", "name": "views", "type": "number", "value": "={{ $json.playCount }}" },
+            { "id": "f8", "name": "likes", "type": "number", "value": "={{ $json.diggCount }}" },
+            { "id": "f9", "name": "comments", "type": "number", "value": "={{ $json.commentCount }}" },
+            { "id": "f10", "name": "saves", "type": "number", "value": "={{ $json.collectCount }}" },
+            { "id": "f11", "name": "shares", "type": "number", "value": "={{ $json.shareCount }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "edit-0009",
+      "name": "Edit Fields - Mapping Metrics",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [180, 140]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfor (const item of items) {\n  const data = item.json;\n\n  const date = new Date(data.post_date);\n  data.month = isNaN(date.getTime()) ? '' : date.getMonth() + 1;\n  data.post_date_display = isNaN(date.getTime())\n    ? ''\n    : DateTime.fromISO(data.post_date).setLocale('id').toFormat('dd LLLL yyyy, HH:mm');\n\n  const views = Number(data.views) || 0;\n  const likes = Number(data.likes) || 0;\n  const comments = Number(data.comments) || 0;\n  const saves = Number(data.saves) || 0;\n  const shares = Number(data.shares) || 0;\n\n  data.er = views > 0\n    ? Number(((likes + comments + saves + shares) / views * 100).toFixed(2))\n    : 0;\n}\n\nreturn items;"
+      },
+      "id": "code-0010",
+      "name": "Code - Hitung Month & ER",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 140]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "tableId": "videos",
+        "matchingColumns": ["input_url"],
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "id": "sb-0011",
+      "name": "Supabase - Upsert Video",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [620, 140],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            { "id": "e1", "name": "input_url", "type": "string", "value": "={{ $json.postUrl || $json.url }}" },
+            { "id": "e2", "name": "error_info", "type": "string", "value": "={{ $json.errorCode }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "edit-0012",
+      "name": "Edit Fields - Log Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [180, 320]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "scrape_errors",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "id": "sb-0013",
+      "name": "Supabase - Log Error",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [400, 320],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "id": "wait-0014",
+      "name": "Wait Between Batches",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-700, 420]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hitung berapa item di batch ini (untuk update processed_count)\nreturn [{ json: { batchCount: $input.all().length, jobId: $('Extract Webhook Payload').first().json.jobId } }];"
+      },
+      "id": "code-0015",
+      "name": "Count Batch Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-940, 460]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "scrape_history",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.jobId }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "processed_count",
+              "fieldValue": "={{ $json.batchCount }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sb-0016",
+      "name": "Supabase - Increment Progress",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-700, 560],
+      "notesInFlow": true,
+      "notes": "PENTING: field processed_count di sini perlu increment, bukan overwrite. Lihat catatan di README — gunakan Postgres function atau baca nilai lama dulu.",
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "scrape_history",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Extract Webhook Payload').first().json.jobId }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "success" },
+            { "fieldId": "finished_at", "fieldValue": "={{ $now.toISO() }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sb-0017",
+      "name": "Supabase - Mark Job Done",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-940, 640],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": { "main": [[{ "node": "Extract Webhook Payload", "type": "main", "index": 0 }]] },
+    "Extract Webhook Payload": { "main": [[{ "node": "Split Out URLs", "type": "main", "index": 0 }]] },
+    "Split Out URLs": { "main": [[{ "node": "Split In Batches (25)", "type": "main", "index": 0 }]] },
+    "Split In Batches (25)": {
+      "main": [
+        [{ "node": "Supabase - Mark Job Done", "type": "main", "index": 0 }],
+        [{ "node": "Aggregate Batch Links", "type": "main", "index": 0 }, { "node": "Count Batch Size", "type": "main", "index": 0 }]
+      ]
+    },
+    "Aggregate Batch Links": { "main": [[{ "node": "Prepare URL Array", "type": "main", "index": 0 }]] },
+    "Prepare URL Array": { "main": [[{ "node": "Apify - Run TikTok Scraper", "type": "main", "index": 0 }]] },
+    "Apify - Run TikTok Scraper": { "main": [[{ "node": "IF - Ada Error?", "type": "main", "index": 0 }]] },
+    "IF - Ada Error?": {
+      "main": [
+        [{ "node": "Edit Fields - Log Error", "type": "main", "index": 0 }],
+        [{ "node": "Edit Fields - Mapping Metrics", "type": "main", "index": 0 }]
+      ]
+    },
+    "Edit Fields - Mapping Metrics": { "main": [[{ "node": "Code - Hitung Month & ER", "type": "main", "index": 0 }]] },
+    "Code - Hitung Month & ER": { "main": [[{ "node": "Supabase - Upsert Video", "type": "main", "index": 0 }]] },
+    "Edit Fields - Log Error": { "main": [[{ "node": "Supabase - Log Error", "type": "main", "index": 0 }]] },
+    "Count Batch Size": { "main": [[{ "node": "Supabase - Increment Progress", "type": "main", "index": 0 }]] },
+    "Supabase - Increment Progress": { "main": [[{ "node": "Wait Between Batches", "type": "main", "index": 0 }]] },
+    "Wait Between Batches": { "main": [[{ "node": "Split In Batches (25)", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "meta": { "instanceId": "tiktok-webhook-batch-v3" }
+}

@@ -64,6 +64,25 @@ create policy "Authenticated users can read errors"
   to authenticated
   using (true);
 
+-- Tabel untuk tracking progres bulk-scrape yang dipicu dari dashboard
+create table if not exists scrape_history (
+    id uuid primary key default gen_random_uuid(),
+    triggered_by uuid,
+    trigger_type text default 'manual', -- 'manual' | 'scheduled'
+    total_count int default 0,
+    processed_count int default 0,
+    started_at timestamptz default now(),
+    finished_at timestamptz,
+    status text default 'running' -- 'running' | 'success' | 'partial' | 'failed'
+);
+
+alter table scrape_history enable row level security;
+
+create policy "Authenticated users can read scrape history"
+  on scrape_history for select
+  to authenticated
+  using (true);
+
 -- Catatan: n8n menulis ke tabel ini memakai Service Role Key (bypass RLS),
 -- jadi tidak perlu policy INSERT/UPDATE untuk role authenticated di sini.
 
