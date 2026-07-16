@@ -7,8 +7,16 @@ import { createClient } from '@/lib/supabase-browser';
 import VideoTable from './VideoTable';
 import TrendChart from './TrendChart';
 import CommentsPanel from './CommentsPanel';
+import BatchesStrip from './BatchesStrip';
 
-export default function DashboardClient({ initialVideos, userEmail, campaignName, isFiltered }) {
+export default function DashboardClient({
+  initialVideos,
+  userEmail,
+  campaignName,
+  campaignId,
+  isFiltered,
+  batches,
+}) {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [metric, setMetric] = useState('views');
   const router = useRouter();
@@ -75,6 +83,10 @@ export default function DashboardClient({ initialVideos, userEmail, campaignName
           </button>
         </div>
       </header>
+
+      {batches && batches.length > 0 && (
+        <BatchesStrip batches={batches} campaignId={campaignId} />
+      )}
 
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         <StatCard label="Total Video" value={summary.totalVideos.toLocaleString('id-ID')} />
