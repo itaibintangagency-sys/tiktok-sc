@@ -8,10 +8,12 @@ import VideoTable from './VideoTable';
 import TrendChart from './TrendChart';
 import CommentsPanel from './CommentsPanel';
 import BatchesStrip from './BatchesStrip';
+import AccountBar from './AccountBar';
 
 export default function DashboardClient({
   initialVideos,
   userEmail,
+  userName,
   userRole,
   campaignName,
   campaignId,
@@ -74,12 +76,6 @@ export default function DashboardClient({
 
     return { totalViews, totalVideos, avgEr, totalCreators };
   }, [initialVideos]);
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  }
 
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-[1400px] mx-auto">
@@ -157,13 +153,7 @@ export default function DashboardClient({
           >
             + Tambah link
           </Link>
-          <span className="text-xs text-muted hidden sm:inline">{userEmail}</span>
-          <button
-            onClick={handleLogout}
-            className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-1.5 transition-colors"
-          >
-            Keluar
-          </button>
+          <AccountBar userName={userName} userEmail={userEmail} userRole={userRole} />
         </div>
       </header>
 

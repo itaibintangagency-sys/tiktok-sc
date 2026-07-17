@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase-server';
 import Link from 'next/link';
 import MyBatchesGrid from '@/components/MyBatchesGrid';
+import AccountBar from '@/components/AccountBar';
 
 export default async function MyBatchesPage() {
   const supabase = createClient();
@@ -15,6 +16,12 @@ export default async function MyBatchesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, full_name')
+    .eq('id', user.id)
+    .single();
+
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-[1400px] mx-auto">
       <header className="flex items-start justify-between mb-8">
@@ -27,12 +34,15 @@ export default async function MyBatchesPage() {
             Semua batch link yang pernah Anda submit, dikelompokkan berdasarkan campaign.
           </p>
         </div>
-        <Link
-          href="/dashboard/add-links"
-          className="text-sm font-medium text-white bg-ink hover:bg-black rounded-md px-4 py-2.5 transition-colors whitespace-nowrap"
-        >
-          + Tambah Link
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/add-links"
+            className="text-sm font-medium text-white bg-ink hover:bg-black rounded-md px-4 py-2.5 transition-colors whitespace-nowrap"
+          >
+            + Tambah Link
+          </Link>
+          <AccountBar userName={profile?.full_name} userEmail={user?.email} userRole={profile?.role} />
+        </div>
       </header>
 
       {(!batches || batches.length === 0) && (
