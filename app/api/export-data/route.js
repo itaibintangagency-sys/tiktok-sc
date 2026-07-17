@@ -15,17 +15,19 @@ export async function GET(request) {
   const scope = searchParams.get('scope') || 'all'; // all | campaign | creator
   const campaignId = searchParams.get('campaignId');
   const batchId = searchParams.get('batchId'); // opsional, mempersempit dalam 1 campaign
-  const username = searchParams.get('username');
+  const usernamesParam = searchParams.get('usernames'); // comma-separated, bisa 1 atau lebih
 
   let videos = [];
   let campaignName = null;
   let batchName = null;
 
-  if (scope === 'creator' && username) {
+  if (scope === 'creator' && usernamesParam) {
+    const usernames = usernamesParam.split(',').map((u) => u.trim()).filter(Boolean);
+
     const { data, error } = await supabase
       .from('videos')
       .select('*, scrape_history(batch_name)')
-      .eq('username', username)
+      .in('username', usernames)
       .order('post_date', { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -104,7 +106,7 @@ export async function GET(request) {
       scope,
       campaignName,
       batchName,
-      username: scope === 'creator' ? username : null,
+      creatorList: scope === 'creator' ? usernamesParam?.split(',').map((u) => u.trim()) : null,
       totalVideo,
       totalCreator: creators.size,
       totalViews,
