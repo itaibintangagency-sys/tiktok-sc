@@ -12,6 +12,7 @@ import BatchesStrip from './BatchesStrip';
 export default function DashboardClient({
   initialVideos,
   userEmail,
+  userRole,
   campaignName,
   campaignId,
   isFiltered,
@@ -126,8 +127,8 @@ export default function DashboardClient({
               className={`font-display text-2xl text-ink ${
                 isFiltered ? 'cursor-pointer hover:text-accent' : ''
               }`}
-              onClick={() => isFiltered && setEditingCampaign(true)}
-              title={isFiltered ? 'Klik untuk ganti nama' : undefined}
+              onClick={() => isFiltered && campaignId && setEditingCampaign(true)}
+              title={isFiltered && campaignId ? 'Klik untuk ganti nama' : undefined}
             >
               {isFiltered ? campaignName : 'Performa Video Kerjasama'}
             </h1>
@@ -136,13 +137,13 @@ export default function DashboardClient({
         <div className="flex items-center gap-3">
           {!isFiltered && (
             <Link
-              href="/dashboard/campaigns"
+              href={userRole === 'super_admin' ? '/dashboard/campaigns' : '/dashboard/my-batches'}
               className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-1.5 transition-colors"
             >
-              Lihat Campaign
+              {userRole === 'super_admin' ? 'Lihat Campaign' : 'Batch Saya'}
             </Link>
           )}
-          {isFiltered && (
+          {isFiltered && campaignId && (
             <button
               onClick={handleDeleteCampaign}
               className="text-xs font-medium text-red-500 hover:text-red-700 border border-red-200 rounded-md px-3 py-1.5 transition-colors"
