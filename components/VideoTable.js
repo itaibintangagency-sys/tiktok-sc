@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { videosToCsv, downloadCsv, buildExportFilename } from '@/lib/csv-export';
 
 const COLUMNS = [
   { key: 'username', label: 'Creator' },
@@ -16,7 +17,7 @@ const COLUMNS = [
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50, 100, 300, 500];
 
-export default function VideoTable({ videos, onSelectVideo, selectedId }) {
+export default function VideoTable({ videos, onSelectVideo, selectedId, exportContext }) {
   const [search, setSearch] = useState('');
   const [usernameFilter, setUsernameFilter] = useState('all');
   const [monthFilter, setMonthFilter] = useState('all');
@@ -104,56 +105,13 @@ export default function VideoTable({ videos, onSelectVideo, selectedId }) {
   }
 
   function exportToCsv() {
-    const headers = [
-      'Creator',
-      'Caption',
-      'Views',
-      'Likes',
-      'Comments',
-      'Saves',
-      'Shares',
-      'ER (%)',
-      'Tanggal',
-      'Batch',
-      'Link',
-    ];
-
-    const escapeCsv = (val) => {
-      const str = String(val ?? '');
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    const rows = filtered.map((v) => [
-      v.username || '',
-      v.caption || '',
-      v.views || 0,
-      v.likes || 0,
-      v.comments_count || 0,
-      v.saves || 0,
-      v.shares || 0,
-      v.er || 0,
-      v.post_date_display || '',
-      v.batch_name || '',
-      v.input_url || '',
-    ]);
-
-    const csvContent = [headers, ...rows]
-      .map((row) => row.map(escapeCsv).join(','))
-      .join('\n');
-
-    // Tambah BOM supaya Excel baca UTF-8 dengan benar (karakter emoji/simbol di caption)
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `creator-pulse-export-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const csvContent = videosToCsv(filtered);
+    const filename = buildExportFilename({
+      contextName: exportContext,
+      usernameFilter,
+      monthFilter,
+    });
+    downloadCsv(csvContent, filename);
   }
 
   return (
@@ -215,9 +173,10 @@ export default function VideoTable({ videos, onSelectVideo, selectedId }) {
         <button
           type="button"
           onClick={exportToCsv}
+          title={`Export ${filtered.length} video sesuai filter aktif (mengabaikan halaman yang sedang dilihat)`}
           className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-2 transition-colors"
         >
-          ↓ Export CSV
+          ↓ Export CSV ({filtered.length})
         </button>
 
         <select

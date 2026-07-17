@@ -201,6 +201,7 @@ export default function DashboardClient({
           videos={initialVideos}
           onSelectVideo={setSelectedVideo}
           selectedId={selectedVideo?.id}
+          exportContext={isFiltered ? campaignName : 'semua-video'}
         />
         <p className="text-xs text-muted mt-3">
           Klik baris video untuk melihat daftar komentarnya.
