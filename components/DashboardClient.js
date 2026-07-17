@@ -148,6 +148,12 @@ export default function DashboardClient({
             </button>
           )}
           <Link
+            href="/dashboard/export"
+            className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-1.5 transition-colors"
+          >
+            Export & AI
+          </Link>
+          <Link
             href="/dashboard/add-links"
             className="text-xs font-medium text-white bg-ink hover:bg-black rounded-md px-3 py-1.5 transition-colors"
           >

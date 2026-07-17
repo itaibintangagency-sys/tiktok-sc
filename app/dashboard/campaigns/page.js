@@ -42,6 +42,12 @@ export default async function CampaignsPage() {
             Kelola Tim
           </Link>
           <Link
+            href="/dashboard/export"
+            className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-1.5 transition-colors"
+          >
+            Export & AI
+          </Link>
+          <Link
             href="/dashboard/add-links"
             className="text-sm font-medium text-white bg-ink hover:bg-black rounded-md px-4 py-2.5 transition-colors whitespace-nowrap"
           >
