@@ -48,7 +48,8 @@ export default function ExportPage() {
   const [scope, setScope] = useState('all'); // all | campaign | creator
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [selectedBatchId, setSelectedBatchId] = useState('');
-  const [selectedUsername, setSelectedUsername] = useState('');
+  const [creatorCount, setCreatorCount] = useState(1);
+  const [selectedUsernames, setSelectedUsernames] = useState(['']);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null); // { videos, meta }
@@ -84,10 +85,20 @@ export default function ExportPage() {
       .catch(() => {});
   }, [scope, selectedCampaignId]);
 
+  // Sesuaikan jumlah slot dropdown creator saat creatorCount berubah
+  useEffect(() => {
+    setSelectedUsernames((prev) => {
+      const next = [...prev];
+      while (next.length < creatorCount) next.push('');
+      while (next.length > creatorCount) next.pop();
+      return next;
+    });
+  }, [creatorCount]);
+
   // Reset hasil preview setiap kali scope/pilihan berubah
   useEffect(() => {
     setResult(null);
-  }, [scope, selectedCampaignId, selectedBatchId, selectedUsername]);
+  }, [scope, selectedCampaignId, selectedBatchId, selectedUsernames]);
 
   async function handlePreview() {
     setLoading(true);
@@ -99,7 +110,7 @@ export default function ExportPage() {
       if (selectedBatchId) params.set('batchId', selectedBatchId);
     }
     if (scope === 'creator') {
-      params.set('username', selectedUsername);
+      params.set('usernames', selectedUsernames.filter(Boolean).join(','));
     }
 
     try {
@@ -115,10 +126,14 @@ export default function ExportPage() {
     if (!result) return;
     const csvContent = videosToCsv(result.videos);
     const contextName =
-      result.meta.campaignName || result.meta.username || 'semua-data';
+      result.meta.campaignName ||
+      (result.meta.creatorList?.length > 1
+        ? `banding-${result.meta.creatorList.length}-creator`
+        : result.meta.creatorList?.[0]) ||
+      'semua-data';
     const filename = buildExportFilename({
       contextName,
-      usernameFilter: result.meta.scope === 'creator' ? result.meta.username : null,
+      usernameFilter: null,
       monthFilter: null,
     });
     downloadCsv(csvContent, filename);
@@ -134,7 +149,9 @@ export default function ExportPage() {
   }
 
   const canPreview =
-    scope === 'all' || (scope === 'campaign' && selectedCampaignId) || (scope === 'creator' && selectedUsername);
+    scope === 'all' ||
+    (scope === 'campaign' && selectedCampaignId) ||
+    (scope === 'creator' && selectedUsernames.length === creatorCount && selectedUsernames.every(Boolean));
 
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-3xl mx-auto">
@@ -210,18 +227,56 @@ export default function ExportPage() {
         )}
 
         {scope === 'creator' && (
-          <select
-            value={selectedUsername}
-            onChange={(e) => setSelectedUsername(e.target.value)}
-            className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-          >
-            <option value="">Pilih creator...</option>
-            {creators.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-muted mb-1.5">
+                Bandingkan berapa creator?
+              </label>
+              <select
+                value={creatorCount}
+                onChange={(e) => setCreatorCount(Number(e.target.value))}
+                className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n === 1 ? '1 creator (tanpa perbandingan)' : `${n} creator`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedUsernames.map((val, i) => {
+              const takenByOthers = selectedUsernames.filter((_, idx) => idx !== i);
+              const availableOptions = creators.filter(
+                (c) => c === val || !takenByOthers.includes(c)
+              );
+              return (
+                <div key={i}>
+                  {creatorCount > 1 && (
+                    <label className="block text-xs font-medium text-muted mb-1.5">
+                      Creator #{i + 1}
+                    </label>
+                  )}
+                  <select
+                    value={val}
+                    onChange={(e) => {
+                      const next = [...selectedUsernames];
+                      next[i] = e.target.value;
+                      setSelectedUsernames(next);
+                    }}
+                    className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="">Pilih creator...</option>
+                    {availableOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
         )}
 
         <button
