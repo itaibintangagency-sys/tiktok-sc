@@ -23,7 +23,7 @@ export default async function CampaignsPage() {
 
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-[1400px] mx-auto">
-      <header className="flex items-start justify-between mb-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
           <p className="font-mono text-xs tracking-widest uppercase text-accent mb-1">
             Creator Pulse
@@ -34,7 +34,7 @@ export default async function CampaignsPage() {
             batch dan videonya.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Link
             href="/dashboard/team"
             className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-1.5 transition-colors"
