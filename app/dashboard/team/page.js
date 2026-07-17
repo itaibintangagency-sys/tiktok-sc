@@ -90,7 +90,7 @@ export default function TeamPage() {
       <div className="border border-line rounded-lg bg-white p-6 mb-8">
         <h2 className="font-display text-base text-ink mb-4">Tambah Akun Baru</h2>
         <form onSubmit={handleInvite} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-muted mb-1.5">Email</label>
               <input
@@ -111,7 +111,7 @@ export default function TeamPage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-muted mb-1.5">Password</label>
               <input
