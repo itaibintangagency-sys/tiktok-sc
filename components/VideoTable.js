@@ -302,7 +302,9 @@ function Pagination({ page, totalPages, totalItems, pageSize, onChange }) {
 
 function VideoRows({ rows, onSelectVideo, selectedId, sortKey, sortDir, toggleSort }) {
   return (
-    <div className="overflow-x-auto border border-line rounded-lg bg-white">
+    <div>
+      <p className="sm:hidden text-[11px] text-muted mb-1.5">← Geser tabel untuk lihat kolom lainnya →</p>
+      <div className="overflow-x-auto border border-line rounded-lg bg-white">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-line bg-paper">
@@ -394,6 +396,7 @@ function VideoRows({ rows, onSelectVideo, selectedId, sortKey, sortDir, toggleSo
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
