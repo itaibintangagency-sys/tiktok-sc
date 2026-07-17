@@ -9,6 +9,7 @@ import TrendChart from './TrendChart';
 import CommentsPanel from './CommentsPanel';
 import BatchesStrip from './BatchesStrip';
 import AccountBar from './AccountBar';
+import CountUp from './CountUp';
 
 export default function DashboardClient({
   initialVideos,
@@ -79,7 +80,7 @@ export default function DashboardClient({
 
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-[1400px] mx-auto">
-      <header className="flex items-start justify-between mb-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
           {isFiltered && (
             <Link
@@ -130,7 +131,7 @@ export default function DashboardClient({
             </h1>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {!isFiltered && (
             <Link
               href={userRole === 'super_admin' ? '/dashboard/campaigns' : '/dashboard/my-batches'}
@@ -168,10 +169,10 @@ export default function DashboardClient({
       )}
 
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <StatCard label="Total Video" value={summary.totalVideos.toLocaleString('id-ID')} />
-        <StatCard label="Total Views" value={summary.totalViews.toLocaleString('id-ID')} />
-        <StatCard label="Rata-rata ER" value={`${summary.avgEr.toFixed(2)}%`} />
-        <StatCard label="Jumlah Creator" value={summary.totalCreators.toLocaleString('id-ID')} />
+        <StatCard label="Total Video" value={summary.totalVideos} />
+        <StatCard label="Total Views" value={summary.totalViews} />
+        <StatCard label="Rata-rata ER" value={summary.avgEr} decimals={2} suffix="%" />
+        <StatCard label="Jumlah Creator" value={summary.totalCreators} />
       </section>
 
       <section className="border border-line rounded-lg bg-white p-5 mb-8">
@@ -219,11 +220,17 @@ export default function DashboardClient({
   );
 }
 
-function StatCard({ label, value }) {
+function StatCard({ label, value, decimals, suffix }) {
   return (
     <div className="border border-line rounded-lg bg-white px-4 py-3.5">
       <p className="text-xs text-muted mb-1">{label}</p>
-      <p className="font-display text-2xl text-ink tabular">{value}</p>
+      <p className="font-display text-2xl text-ink tabular">
+        <CountUp
+          value={value}
+          format={decimals ? (n) => n.toFixed(decimals) : (n) => Math.round(n).toLocaleString('id-ID')}
+        />
+        {suffix}
+      </p>
     </div>
   );
 }
