@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
 export default function CampaignsListGrid({ campaigns }) {
@@ -81,16 +82,22 @@ export default function CampaignsListGrid({ campaigns }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {items.map((c) => {
+        {items.map((c, index) => {
           const percent =
             c._liveTotal > 0 ? Math.round((c._liveProcessed / c._liveTotal) * 100) : null;
 
           return (
-            <Link
+            <motion.div
               key={c.campaign_id}
-              href={`/dashboard/campaigns/${c.campaign_id}`}
-              className="border border-line rounded-lg bg-white p-5 hover:border-accent transition-colors group"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: Math.min(index * 0.05, 0.4), ease: 'easeOut' }}
+              whileHover={{ y: -3, boxShadow: '0 8px 20px -6px rgba(0,0,0,0.12)' }}
             >
+              <Link
+                href={`/dashboard/campaigns/${c.campaign_id}`}
+                className="block border border-line rounded-lg bg-white p-5 hover:border-accent transition-colors group"
+              >
               <div className="flex items-start justify-between mb-3">
                 <h3 className="font-display text-base text-ink group-hover:text-accent transition-colors pr-2">
                   {c.campaign_name}
@@ -134,7 +141,7 @@ export default function CampaignsListGrid({ campaigns }) {
                 <div className="mt-3">
                   <div className="w-full h-1.5 rounded-full bg-paper border border-line overflow-hidden">
                     <div
-                      className="h-full bg-amber-500 transition-all duration-500"
+                      className="h-full bg-amber-500 transition-all duration-500 animate-pulse"
                       style={{ width: `${percent}%` }}
                     />
                   </div>
@@ -143,7 +150,8 @@ export default function CampaignsListGrid({ campaigns }) {
                   </p>
                 </div>
               )}
-            </Link>
+              </Link>
+            </motion.div>
           );
         })}
       </div>
