@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-const MAX_LINKS = 50; // batas per batch — samakan dengan app/api/trigger-scrape/route.js
+const MAX_LINKS = 50;
 
 export default function AddLinksPage() {
   return (
@@ -25,19 +25,34 @@ function AddLinksInner() {
   const presetCampaignId = searchParams.get('campaign');
   const presetCampaignName = searchParams.get('campaignName');
 
+  const [role, setRole] = useState(null); // null = belum tahu, 'super_admin' | 'admin'
   const [text, setText] = useState('');
   const [campaigns, setCampaigns] = useState([]);
-  const [campaignMode, setCampaignMode] = useState(presetCampaignId ? 'existing' : 'new');
+  const [campaignMode, setCampaignMode] = useState(presetCampaignId ? 'existing' : 'existing');
   const [selectedCampaignId, setSelectedCampaignId] = useState(presetCampaignId || '');
   const [newCampaignName, setNewCampaignName] = useState('');
+  const [customBatchName, setCustomBatchName] = useState('');
+
+  const [batchTarget, setBatchTarget] = useState('new');
+  const [batchesInCampaign, setBatchesInCampaign] = useState([]);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [job, setJob] = useState(null);
   const [progress, setProgress] = useState(null);
   const [showErrors, setShowErrors] = useState(false);
-  const pollRef = useRef(null);
 
-  // Ambil daftar campaign yang sudah ada untuk dropdown (skip kalau sudah datang dari preset)
+  const effectiveCampaignId = presetCampaignId || selectedCampaignId;
+  const isAdmin = role === 'admin';
+
+  // Ambil role user saat ini
+  useEffect(() => {
+    fetch('/api/me')
+      .then((res) => res.json())
+      .then((data) => setRole(data.role || 'admin'))
+      .catch(() => setRole('admin'));
+  }, []);
+
   useEffect(() => {
     if (presetCampaignId) return;
     fetch('/api/campaigns')
@@ -45,6 +60,17 @@ function AddLinksInner() {
       .then((data) => setCampaigns(data.campaigns || []))
       .catch(() => {});
   }, [presetCampaignId]);
+
+  useEffect(() => {
+    if (campaignMode !== 'existing' || !effectiveCampaignId) {
+      setBatchesInCampaign([]);
+      return;
+    }
+    fetch(`/api/campaigns/${effectiveCampaignId}/batches`)
+      .then((res) => res.json())
+      .then((data) => setBatchesInCampaign(data.batches || []))
+      .catch(() => {});
+  }, [campaignMode, effectiveCampaignId]);
 
   const linkCount = text
     .split('\n')
@@ -65,10 +91,10 @@ function AddLinksInner() {
       return;
     }
     if (urls.length > MAX_LINKS) {
-      setError(`Maksimal ${MAX_LINKS} link per batch (Anda memasukkan ${urls.length}).`);
+      setError(`Maksimal ${MAX_LINKS} link per submit (Anda memasukkan ${urls.length}).`);
       return;
     }
-    if (campaignMode === 'existing' && !selectedCampaignId) {
+    if (campaignMode === 'existing' && !effectiveCampaignId) {
       setError('Pilih campaign terlebih dahulu.');
       return;
     }
@@ -78,14 +104,23 @@ function AddLinksInner() {
     }
 
     setSubmitting(true);
+
+    const body = { urls };
+    if (batchTarget !== 'new') {
+      body.appendToBatchId = batchTarget;
+    } else {
+      body.batchName = customBatchName.trim() || null;
+      if (campaignMode === 'existing') {
+        body.campaignId = effectiveCampaignId;
+      } else {
+        body.newCampaignName = newCampaignName.trim();
+      }
+    }
+
     const res = await fetch('/api/trigger-scrape', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        urls,
-        campaignId: campaignMode === 'existing' ? selectedCampaignId : null,
-        newCampaignName: campaignMode === 'new' ? newCampaignName.trim() : null,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -95,27 +130,25 @@ function AddLinksInner() {
       return;
     }
 
-    setJob({ id: data.jobId, campaignId: data.campaignId, total: data.total });
+    setJob({ id: data.jobId, campaignId: data.campaignId || effectiveCampaignId, total: data.total });
     setText('');
   }
 
   useEffect(() => {
     if (!job) return;
+    let interval;
 
     async function poll() {
       const res = await fetch(`/api/scrape-status/${job.id}`);
       if (!res.ok) return;
       const data = await res.json();
       setProgress(data);
-
-      if (data.status === 'success' || data.status === 'failed' || data.status === 'partial') {
-        clearInterval(pollRef.current);
-      }
+      if (data.status !== 'running') clearInterval(interval);
     }
 
     poll();
-    pollRef.current = setInterval(poll, 3000);
-    return () => clearInterval(pollRef.current);
+    interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
   }, [job]);
 
   const percent = progress ? Math.round((progress.processed_count / progress.total_count) * 100) : 0;
@@ -128,10 +161,23 @@ function AddLinksInner() {
     return `±${Math.round(seconds / 60)} menit lagi`;
   }
 
+  const nonRunningBatches = batchesInCampaign.filter((b) => b.status !== 'running');
+
+  if (role === null) {
+    return (
+      <main className="min-h-screen px-6 md:px-10 py-8 max-w-2xl mx-auto">
+        <p className="text-sm text-muted">Memuat...</p>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen px-6 md:px-10 py-8 max-w-2xl mx-auto">
-      <Link href="/dashboard/campaigns" className="text-xs text-muted hover:text-ink mb-6 inline-block">
-        ← Kembali ke campaigns
+      <Link
+        href={role === 'super_admin' ? '/dashboard/campaigns' : '/dashboard/my-batches'}
+        className="text-xs text-muted hover:text-ink mb-6 inline-block"
+      >
+        ← Kembali
       </Link>
 
       <p className="font-mono text-xs tracking-widest uppercase text-accent mb-1">
@@ -139,7 +185,7 @@ function AddLinksInner() {
       </p>
       <h1 className="font-display text-2xl text-ink mb-2">Tambah link video</h1>
       <p className="text-muted text-sm mb-8">
-        Tempel link TikTok, satu link per baris. Maksimal {MAX_LINKS} link per batch.
+        Tempel link TikTok, satu link per baris. Maksimal {MAX_LINKS} link per submit.
       </p>
 
       {!job && (
@@ -150,41 +196,47 @@ function AddLinksInner() {
 
             {presetCampaignId ? (
               <div className="rounded-md border border-line bg-paper px-3.5 py-2.5 text-sm text-ink">
-                Menambahkan batch ke: <strong>{presetCampaignName || 'Campaign ini'}</strong>
+                {presetCampaignName || 'Campaign ini'}
               </div>
             ) : (
               <>
-                <div className="inline-flex rounded-md border border-line p-0.5 bg-white mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setCampaignMode('existing')}
-                    className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                      campaignMode === 'existing' ? 'bg-ink text-white' : 'text-muted'
-                    }`}
-                  >
-                    Campaign yang sudah ada
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCampaignMode('new')}
-                    className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                      campaignMode === 'new' ? 'bg-ink text-white' : 'text-muted'
-                    }`}
-                  >
-                    Campaign baru
-                  </button>
-                </div>
+                {/* Admin tidak lihat toggle sama sekali — cuma boleh pilih campaign existing */}
+                {!isAdmin && (
+                  <div className="inline-flex rounded-md border border-line p-0.5 bg-white mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setCampaignMode('existing')}
+                      className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                        campaignMode === 'existing' ? 'bg-ink text-white' : 'text-muted'
+                      }`}
+                    >
+                      Campaign yang sudah ada
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCampaignMode('new')}
+                      className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                        campaignMode === 'new' ? 'bg-ink text-white' : 'text-muted'
+                      }`}
+                    >
+                      Campaign baru
+                    </button>
+                  </div>
+                )}
 
                 {campaignMode === 'existing' ? (
                   <select
                     value={selectedCampaignId}
-                    onChange={(e) => setSelectedCampaignId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedCampaignId(e.target.value);
+                      setBatchTarget('new');
+                    }}
                     className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
                   >
                     <option value="">Pilih campaign...</option>
                     {campaigns.map((c) => (
                       <option key={c.campaign_id} value={c.campaign_id}>
-                        {c.campaign_name} ({c.batch_count} batch)
+                        {c.campaign_name}
                       </option>
                     ))}
                   </select>
@@ -200,6 +252,51 @@ function AddLinksInner() {
               </>
             )}
           </div>
+
+          {/* Batch target: buat baru / append */}
+          {campaignMode === 'existing' && effectiveCampaignId && (
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-muted mb-1.5">
+                Masukkan ke batch mana?
+              </label>
+              <select
+                value={batchTarget}
+                onChange={(e) => setBatchTarget(e.target.value)}
+                className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              >
+                <option value="new">+ Buat batch baru</option>
+                {nonRunningBatches.map((b) => (
+                  <option key={b.batch_id} value={b.batch_id}>
+                    Tambahkan ke: {b.batch_name} ({b.video_count} video saat ini)
+                  </option>
+                ))}
+              </select>
+              {batchesInCampaign.some((b) => b.status === 'running') && (
+                <p className="text-[11px] text-amber-600 mt-1.5">
+                  Ada batch yang sedang berjalan — tidak bisa ditambahkan link sampai selesai.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Nama batch — cuma relevan kalau bikin batch BARU (bukan append) */}
+          {batchTarget === 'new' && (
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-muted mb-1.5">
+                Nama batch <span className="text-muted/60">(opsional)</span>
+              </label>
+              <input
+                type="text"
+                value={customBatchName}
+                onChange={(e) => setCustomBatchName(e.target.value)}
+                placeholder="Contoh: Wave 1 - Minggu Pertama"
+                className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+              />
+              <p className="text-[11px] text-muted/70 mt-1">
+                Kosongkan untuk pakai nama otomatis ("Batch 1", "Batch 2", dst).
+              </p>
+            </div>
+          )}
 
           <textarea
             value={text}
@@ -284,15 +381,20 @@ function AddLinksInner() {
           {isDone && (
             <div className="mt-5 flex items-center gap-3">
               <Link
-                href={`/dashboard/campaigns/${job.campaignId}`}
+                href={
+                  role === 'super_admin'
+                    ? `/dashboard/campaigns/${job.campaignId}`
+                    : '/dashboard/my-batches'
+                }
                 className="rounded-md bg-ink text-white text-sm font-medium px-4 py-2 hover:bg-black transition-colors"
               >
-                Lihat campaign
+                {role === 'super_admin' ? 'Lihat campaign' : 'Lihat batch saya'}
               </Link>
               <button
                 onClick={() => {
                   setJob(null);
                   setProgress(null);
+                  setCustomBatchName('');
                 }}
                 className="text-sm text-muted hover:text-ink"
               >
