@@ -20,14 +20,29 @@ export default function LoginPage() {
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       setError('Email atau password salah. Coba lagi.');
       return;
     }
 
-    router.push('/dashboard');
+    // Cek role untuk tentukan halaman tujuan setelah login
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    setLoading(false);
+
+    const destination =
+      profile?.role === 'super_admin' ? '/dashboard/campaigns' : '/dashboard/my-batches';
+
+    router.push(destination);
     router.refresh();
   }
 
@@ -93,11 +108,8 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-muted mt-6">
-          Belum punya akun?{' '}
-          <Link href="/signup" className="text-ink underline">
-            Daftar di sini
-          </Link>
-          . Atau hubungi admin tim kalau akun seharusnya sudah dibuatkan.
+          Belum punya akun? Hubungi Super Admin tim untuk dibuatkan akun — pendaftaran
+          mandiri sudah ditutup.
         </p>
       </div>
     </main>

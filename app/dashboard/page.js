@@ -25,13 +25,19 @@ export default async function DashboardPage({ searchParams }) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Nama campaign untuk header, kalau sedang dalam mode terfilter
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
   const campaignName = batchId ? videos[0]?.batch_name ?? 'Campaign' : null;
 
   return (
     <DashboardClient
       initialVideos={videos}
       userEmail={user?.email}
+      userRole={profile?.role || 'admin'}
       campaignName={campaignName}
       isFiltered={!!batchId}
     />

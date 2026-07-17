@@ -12,6 +12,7 @@ import BatchesStrip from './BatchesStrip';
 export default function DashboardClient({
   initialVideos,
   userEmail,
+  userRole,
   campaignName,
   campaignId,
   isFiltered,
@@ -19,8 +20,48 @@ export default function DashboardClient({
 }) {
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [metric, setMetric] = useState('views');
+  const [editingCampaign, setEditingCampaign] = useState(false);
+  const [campaignNameDraft, setCampaignNameDraft] = useState(campaignName || '');
+  const [savingCampaign, setSavingCampaign] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  async function handleRenameCampaign() {
+    if (!campaignNameDraft.trim()) return;
+    setSavingCampaign(true);
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: campaignNameDraft.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Gagal mengubah nama campaign.');
+        return;
+      }
+      setEditingCampaign(false);
+      router.refresh();
+    } finally {
+      setSavingCampaign(false);
+    }
+  }
+
+  async function handleDeleteCampaign() {
+    const confirmed = window.confirm(
+      `Yakin hapus campaign "${campaignName}"? Ini akan menghapus SEMUA batch dan video di dalamnya secara permanen dan tidak bisa dibatalkan.`
+    );
+    if (!confirmed) return;
+
+    const res = await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || 'Gagal menghapus campaign.');
+      return;
+    }
+    router.push('/dashboard/campaigns');
+    router.refresh();
+  }
 
   const summary = useMemo(() => {
     const totalViews = initialVideos.reduce((sum, v) => sum + (v.views || 0), 0);
@@ -55,18 +96,60 @@ export default function DashboardClient({
           <p className="font-mono text-xs tracking-widest uppercase text-accent mb-1">
             Creator Pulse
           </p>
-          <h1 className="font-display text-2xl text-ink">
-            {isFiltered ? campaignName : 'Performa Video Kerjasama'}
-          </h1>
+          {isFiltered && editingCampaign ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={campaignNameDraft}
+                onChange={(e) => setCampaignNameDraft(e.target.value)}
+                autoFocus
+                className="font-display text-2xl text-ink border-b-2 border-accent outline-none bg-transparent"
+              />
+              <button
+                onClick={handleRenameCampaign}
+                disabled={savingCampaign}
+                className="text-xs font-medium text-white bg-ink rounded px-2.5 py-1 hover:bg-black disabled:opacity-50"
+              >
+                Simpan
+              </button>
+              <button
+                onClick={() => {
+                  setEditingCampaign(false);
+                  setCampaignNameDraft(campaignName || '');
+                }}
+                className="text-xs text-muted hover:text-ink"
+              >
+                Batal
+              </button>
+            </div>
+          ) : (
+            <h1
+              className={`font-display text-2xl text-ink ${
+                isFiltered ? 'cursor-pointer hover:text-accent' : ''
+              }`}
+              onClick={() => isFiltered && setEditingCampaign(true)}
+              title={isFiltered ? 'Klik untuk ganti nama' : undefined}
+            >
+              {isFiltered ? campaignName : 'Performa Video Kerjasama'}
+            </h1>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {!isFiltered && (
             <Link
-              href="/dashboard/campaigns"
+              href={userRole === 'super_admin' ? '/dashboard/campaigns' : '/dashboard/my-batches'}
               className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-1.5 transition-colors"
             >
-              Lihat Campaign
+              {userRole === 'super_admin' ? 'Lihat Campaign' : 'Batch Saya'}
             </Link>
+          )}
+          {isFiltered && (
+            <button
+              onClick={handleDeleteCampaign}
+              className="text-xs font-medium text-red-500 hover:text-red-700 border border-red-200 rounded-md px-3 py-1.5 transition-colors"
+            >
+              Hapus Campaign
+            </button>
           )}
           <Link
             href="/dashboard/add-links"
