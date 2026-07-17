@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const COLUMNS = [
   { key: 'username', label: 'Creator' },
@@ -14,6 +14,8 @@ const COLUMNS = [
   { key: 'post_date_display', label: 'Tanggal' },
 ];
 
+const PAGE_SIZE_OPTIONS = [10, 30, 50, 100, 300, 500];
+
 export default function VideoTable({ videos, onSelectVideo, selectedId }) {
   const [search, setSearch] = useState('');
   const [usernameFilter, setUsernameFilter] = useState('all');
@@ -21,6 +23,9 @@ export default function VideoTable({ videos, onSelectVideo, selectedId }) {
   const [sortKey, setSortKey] = useState('post_date');
   const [sortDir, setSortDir] = useState('desc');
   const [viewMode, setViewMode] = useState('creator'); // 'creator' | 'batch'
+  const [pageSize, setPageSize] = useState(50);
+  const [page, setPage] = useState(1); // dipakai mode 'creator'
+  const [batchPages, setBatchPages] = useState({}); // dipakai mode 'batch', per batchId
 
   const usernames = useMemo(
     () => Array.from(new Set(videos.map((v) => v.username).filter(Boolean))).sort(),
@@ -82,6 +87,13 @@ export default function VideoTable({ videos, onSelectVideo, selectedId }) {
     return Array.from(map.entries());
   }, [filtered, viewMode]);
 
+  // Reset ke halaman 1 setiap kali filter/pageSize/viewMode berubah —
+  // supaya tidak "nyangkut" di halaman 5 padahal hasil filter cuma 1 halaman
+  useEffect(() => {
+    setPage(1);
+    setBatchPages({});
+  }, [search, usernameFilter, monthFilter, pageSize, viewMode, sortKey, sortDir]);
+
   function toggleSort(key) {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -89,6 +101,59 @@ export default function VideoTable({ videos, onSelectVideo, selectedId }) {
       setSortKey(key);
       setSortDir('desc');
     }
+  }
+
+  function exportToCsv() {
+    const headers = [
+      'Creator',
+      'Caption',
+      'Views',
+      'Likes',
+      'Comments',
+      'Saves',
+      'Shares',
+      'ER (%)',
+      'Tanggal',
+      'Batch',
+      'Link',
+    ];
+
+    const escapeCsv = (val) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = filtered.map((v) => [
+      v.username || '',
+      v.caption || '',
+      v.views || 0,
+      v.likes || 0,
+      v.comments_count || 0,
+      v.saves || 0,
+      v.shares || 0,
+      v.er || 0,
+      v.post_date_display || '',
+      v.batch_name || '',
+      v.input_url || '',
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(escapeCsv).join(','))
+      .join('\n');
+
+    // Tambah BOM supaya Excel baca UTF-8 dengan benar (karakter emoji/simbol di caption)
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `creator-pulse-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -147,41 +212,131 @@ export default function VideoTable({ videos, onSelectVideo, selectedId }) {
           </button>
         </div>
 
+        <button
+          type="button"
+          onClick={exportToCsv}
+          className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-3 py-2 transition-colors"
+        >
+          ↓ Export CSV
+        </button>
+
+        <select
+          value={pageSize}
+          onChange={(e) => setPageSize(Number(e.target.value))}
+          className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+          title="Jumlah baris per halaman"
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n} / halaman
+            </option>
+          ))}
+        </select>
+
         <span className="text-xs text-muted ml-auto tabular">
           {filtered.length} dari {videos.length} video
         </span>
       </div>
 
-      {viewMode === 'creator' && (
-        <VideoRows
-          rows={filtered}
-          onSelectVideo={onSelectVideo}
-          selectedId={selectedId}
-          sortKey={sortKey}
-          sortDir={sortDir}
-          toggleSort={toggleSort}
-        />
-      )}
-
-      {viewMode === 'batch' &&
-        grouped.map(([batchId, group]) => (
-          <div key={batchId} className="mb-6">
-            <h3 className="font-display text-sm text-ink mb-2">
-              {group.batchName}{' '}
-              <span className="font-sans font-normal text-xs text-muted">
-                ({group.rows.length} video)
-              </span>
-            </h3>
+      {viewMode === 'creator' && (() => {
+        const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+        const currentPage = Math.min(page, totalPages);
+        const pagedRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+        return (
+          <>
             <VideoRows
-              rows={group.rows}
+              rows={pagedRows}
               onSelectVideo={onSelectVideo}
               selectedId={selectedId}
               sortKey={sortKey}
               sortDir={sortDir}
               toggleSort={toggleSort}
             />
-          </div>
-        ))}
+            <Pagination
+              page={currentPage}
+              totalPages={totalPages}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onChange={setPage}
+            />
+          </>
+        );
+      })()}
+
+      {viewMode === 'batch' &&
+        grouped.map(([batchId, group]) => {
+          const bp = batchPages[batchId] || 1;
+          const totalPages = Math.max(1, Math.ceil(group.rows.length / pageSize));
+          const currentPage = Math.min(bp, totalPages);
+          const pagedRows = group.rows.slice(
+            (currentPage - 1) * pageSize,
+            currentPage * pageSize
+          );
+          return (
+            <div key={batchId} className="mb-6">
+              <h3 className="font-display text-sm text-ink mb-2">
+                {group.batchName}{' '}
+                <span className="font-sans font-normal text-xs text-muted">
+                  ({group.rows.length} video)
+                </span>
+              </h3>
+              <VideoRows
+                rows={pagedRows}
+                onSelectVideo={onSelectVideo}
+                selectedId={selectedId}
+                sortKey={sortKey}
+                sortDir={sortDir}
+                toggleSort={toggleSort}
+              />
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                totalItems={group.rows.length}
+                pageSize={pageSize}
+                onChange={(p) => setBatchPages((prev) => ({ ...prev, [batchId]: p }))}
+              />
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+function Pagination({ page, totalPages, totalItems, pageSize, onChange }) {
+  if (totalItems === 0) return null;
+
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, totalItems);
+
+  return (
+    <div className="flex items-center justify-between mt-2 px-1">
+      <span className="text-[11px] text-muted tabular">
+        Menampilkan {start}–{end} dari {totalItems}
+      </span>
+
+      {totalPages > 1 && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onChange(page - 1)}
+            disabled={page <= 1}
+            className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-2.5 py-1 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ← Prev
+          </button>
+          <span className="text-[11px] text-muted tabular">
+            Hal {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange(page + 1)}
+            disabled={page >= totalPages}
+            className="text-xs font-medium text-muted hover:text-ink border border-line rounded-md px-2.5 py-1 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
